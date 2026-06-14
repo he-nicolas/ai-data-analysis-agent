@@ -1,4 +1,4 @@
-from app.core.llm import call_llm
+from ai_data_analysis_agent.core.llm import call_llm
 
 def run_agent(user_input: str, session_id: str | None = None):
 
@@ -13,4 +13,4 @@ def run_agent(user_input: str, session_id: str | None = None):
 
     response = call_llm(prompt)
 
-    return response
+    return response.strip()

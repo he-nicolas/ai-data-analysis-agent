@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from app.agents.agent import run_agent
+from ai_data_analysis_agent.agents.agent import run_agent
 import time
 import logging
 

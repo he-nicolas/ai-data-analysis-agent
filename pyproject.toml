@@ -1,21 +1,34 @@
 [project]
 name = "ai-data-analysis-agent"
 version = "0.1.0"
-description = "Production-style agentic AI system"
+description = "AI Data Analysis Agent"
+requires-python = ">=3.11"
 dependencies = [
   "fastapi",
   "uvicorn",
   "pydantic",
-  "openai",
-  "langchain",
-  "chromadb",
-  "sqlalchemy"
+  "groq",
+  "streamlit",
+  "requests",
+  "python-dotenv",
+  "ipykernel>=7.3.0",
+  "kagglehub>=1.0.2",
+  "sqlalchemy>=2.0.50",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+  "black"
 ]
 
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
-
 [tool.setuptools]
-packages = ["app"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
