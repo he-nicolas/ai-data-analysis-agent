@@ -283,4 +283,4 @@ def run_sql_pipeline(query: str) -> str:
     return result
 
 
-tools = [sql_db_list_tables, sql_db_schema, run_sql_pipeline]
+sql_tools = [sql_db_list_tables, sql_db_schema, run_sql_pipeline]

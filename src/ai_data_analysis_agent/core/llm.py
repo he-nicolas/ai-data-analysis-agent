@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from groq import Groq
 from openai import OpenAI
+from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from ai_data_analysis_agent.core.config import Settings
 
 
@@ -50,3 +52,22 @@ _provider = get_provider()
 
 def call_llm(prompt: str) -> str:
     return _provider.generate(prompt)
+
+
+def get_llm():
+    if Settings.LLM_PROVIDER == "groq":
+        return ChatGroq(
+            api_key=Settings.GROQ_API_KEY,
+            model=Settings.LLM_MODEL,
+            temperature=0,
+        )
+
+    elif Settings.LLM_PROVIDER == "openai":
+        return ChatOpenAI(
+            api_key=Settings.OPENAI_API_KEY,
+            model=Settings.LLM_MODEL,
+            temperature=0,
+        )
+
+    else:
+        raise ValueError(f"Unknown provider: {Settings.LLM_PROVIDER}")
