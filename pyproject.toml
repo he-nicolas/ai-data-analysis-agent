@@ -19,6 +19,7 @@ dependencies = [
   "langchain-core>=1.4.7",
   "langchain-groq>=1.1.3",
   "langchain-openai>=1.3.2",
+  "st-flexible-callout-elements>=0.2.1",
 ]
 
 [project.optional-dependencies]
