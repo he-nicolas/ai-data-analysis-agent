@@ -1,11 +1,11 @@
 from fastapi import APIRouter, UploadFile, File, Form
 import os
-import logging
+from ai_data_analysis_agent.core.logging import get_logger
 import time
 from ai_data_analysis_agent.core.session_store import set_file_path
 
 router = APIRouter()
-logger = logging.getLogger("ai-agent")
+logger = get_logger(__name__)
 
 UPLOAD_DIR = "data/uploaded_file"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -18,14 +18,16 @@ async def upload(file: UploadFile = File(...), session_id: str = Form(...)):
     logger.info(
         "Upload request received",
         extra={
-            "filename": file.filename,
+            "file_name": file.filename,
             "session_id": session_id
         }
     )
 
     try:
+        if not file.filename.endswith(".xlsx"):
+            return {"status": "error", "message": "Only .xlsx allowed"}
         file_path = os.path.join(UPLOAD_DIR, f"{session_id}_{file.filename}")
-
+        
         content = await file.read()
 
         with open(file_path, "wb") as f:

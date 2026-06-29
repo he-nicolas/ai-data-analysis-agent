@@ -1,11 +1,12 @@
 from fastapi import APIRouter
-import logging
+from pydantic import BaseModel
+from uvicorn import logging
+from ai_data_analysis_agent.core.logging import get_logger
 from ai_data_analysis_agent.core.session_store import delete_session
 
 router = APIRouter()
-logger = logging.getLogger("ai-agent")
+logger = get_logger(__name__)
 
-from pydantic import BaseModel
 
 class SessionEndRequest(BaseModel):
     session_id: str

@@ -110,7 +110,7 @@ with control_col:
                     flexible_callout("File uploaded successfully", background_color="#4CAF50")
 
                 except Exception as e:
-                    flexible_callout(f"Upload failed: {str(e)}", background_color="#cb5047")
+                    flexible_callout(f"Upload failed: {str(e)}", background_color="#e34439")
 
         # ---------------------------
         # CASE 2: FILE REMOVED
