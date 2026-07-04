@@ -13,5 +13,5 @@ dist/
 .DS_Store
 .ipynb_checkpoints/
 *.log
-data/db/
+data/uploaded_file/
 logs/
