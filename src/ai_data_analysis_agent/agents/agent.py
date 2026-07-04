@@ -5,14 +5,21 @@ from ai_data_analysis_agent.tools.sql_tools import sql_tools
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents.middleware import AgentState
-import uuid
 
 class CustomState(AgentState):
     session_id: str
 
-
 llm = get_llm()
-agent = create_agent(
+
+sql_agent = create_agent(
+    model=llm,
+    tools=sql_tools,
+    system_prompt=SYSTEM_PROMPT,
+    checkpointer=InMemorySaver(),
+    state_schema=CustomState,
+)
+
+excel_agent = create_agent(
     model=llm,
     tools=sql_tools,
     system_prompt=SYSTEM_PROMPT,
@@ -21,12 +28,21 @@ agent = create_agent(
 )
 
 
-def run_agent(user_input: str, session_id: str | None = None, thread_id: str | None = None):
+def run_agent(user_input: str, session_id: str, data_source: str):
+    if data_source == "[Example] Sales Excel":
+        pass
+    elif data_source == "[Example] Music Database":
+        pass
+    elif data_source == "Upload Excel":
+        pass
+    else:
+        return "Invalid data source."
+
+
 
     if not is_answerable(user_input):
         return "I can only help with questions related to the connected data sources."
 
-    thread_id = thread_id or "default-thread"
 
     result = agent.invoke(
         {
@@ -35,7 +51,6 @@ def run_agent(user_input: str, session_id: str | None = None, thread_id: str | N
         },
         config={
             "configurable": {
-                "thread_id": thread_id,
                 "recursion_limit": 3
             }
         },

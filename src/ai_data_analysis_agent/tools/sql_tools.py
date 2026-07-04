@@ -1,28 +1,149 @@
-from langchain_core.tools import tool
-from contextlib import contextmanager
+import re
+import threading
+from typing import Any, Optional
+
+import sqlparse
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine
+
 from ai_data_analysis_agent.core.config import Settings
 from ai_data_analysis_agent.core.logging import get_logger
 from ai_data_analysis_agent.core.llm import call_llm
-
+from langchain_core.tools import tool
 
 logger = get_logger(__name__)
 
-engine = create_engine(f"sqlite:///{Settings.DB_PATH}")
+QUERY_TIMEOUT_SECONDS = 10
+MAX_ROWS = 100
+MAX_RESULT_CHARS = 4000
+MAX_CELL_CHARS = 300
 
-@contextmanager
-def get_connection():
-    """
-    Provides a database connection and ensures it is always closed.
+# Keywords that should never appear in a read-only query, anywhere in the
+# statement (including inside a CTE, subquery, or after a semicolon).
+_FORBIDDEN_KEYWORDS = {
+    "insert",
+    "update",
+    "delete",
+    "drop",
+    "alter",
+    "create",
+    "replace",
+    "attach",
+    "detach",
+    "pragma",
+    "vacuum",
+    "reindex",
+    "grant",
+    "revoke",
+    "truncate",
+    "begin",
+    "commit",
+    "rollback",
+}
 
-    Yields:
-        Connection: SQLAlchemy connection object
+_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _build_readonly_engine() -> Engine:
     """
-    conn = engine.connect()
-    try:
-        yield conn
-    finally:
-        conn.close()
+    Open the SQLite file in true read-only mode via its URI filename feature.
+    This is enforced by SQLite itself, independent of any query parsing we do.
+    """
+    uri = f"sqlite:///file:{Settings.DB_PATH}?mode=ro&uri=true"
+    return create_engine(uri, connect_args={"check_same_thread": False})
+
+
+engine = _build_readonly_engine()
+
+
+def _strip_code_fences(text_: str) -> str:
+    text_ = text_.strip()
+    if text_.startswith("```"):
+        lines = text_.splitlines()[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text_ = "\n".join(lines)
+    return text_.strip()
+
+
+def _validate_readonly_sql(query: str) -> str:
+    """
+    Raise ValueError unless `query` is exactly one read-only statement.
+    Returns the query with any trailing semicolon stripped.
+    """
+    statements = [s for s in sqlparse.split(query) if s.strip()]
+    if len(statements) == 0:
+        raise ValueError("No SQL statement found.")
+    if len(statements) > 1:
+        raise ValueError("Only a single SQL statement is allowed per call.")
+
+    stmt = statements[0].strip().rstrip(";").strip()
+
+    tokens = {t.lower() for t in _TOKEN_RE.findall(stmt)}
+    forbidden_hits = tokens & _FORBIDDEN_KEYWORDS
+    if forbidden_hits:
+        raise ValueError(
+            f"Disallowed keyword(s) in query: {', '.join(sorted(forbidden_hits))}"
+        )
+
+    first_word = stmt.split(None, 1)[0].lower() if stmt else ""
+    if first_word not in {"select", "with"}:
+        raise ValueError(
+            "Only SELECT statements (optionally starting with WITH) are allowed."
+        )
+
+    return stmt
+
+
+def _ensure_limit(query: str, limit: int = MAX_ROWS) -> str:
+    """Append a LIMIT clause via the parser, not a substring check, unless one already exists."""
+    parsed = sqlparse.parse(query)[0]
+    has_limit = any(
+        tok.ttype is sqlparse.tokens.Keyword and tok.value.upper() == "LIMIT"
+        for tok in parsed.tokens
+    )
+    if has_limit:
+        return query
+    return f"{query} LIMIT {limit}"
+
+
+def _execute_with_timeout(
+    query: str, timeout: int = QUERY_TIMEOUT_SECONDS
+) -> list[dict[str, Any]]:
+    with engine.connect() as conn:
+        raw_conn = conn.connection  # underlying DBAPI (sqlite3) connection
+        timer = threading.Timer(timeout, raw_conn.interrupt)
+        timer.start()
+        try:
+            result = conn.execute(text(query))
+            rows = [dict(row) for row in result.mappings().all()]
+        finally:
+            timer.cancel()
+    return rows
+
+
+def _format_rows(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return "Query returned no rows."
+
+    truncated_row_count = len(rows) > MAX_ROWS
+    rows = rows[:MAX_ROWS]
+
+    def fmt_cell(v: Any) -> str:
+        s = str(v)
+        return s if len(s) <= MAX_CELL_CHARS else s[:MAX_CELL_CHARS] + "...(truncated)"
+
+    columns = list(rows[0].keys())
+    lines = [" | ".join(columns)]
+    for row in rows:
+        lines.append(" | ".join(fmt_cell(row[c]) for c in columns))
+
+    text_out = "\n".join(lines)
+    if truncated_row_count:
+        text_out += f"\n... (showing first {MAX_ROWS} rows)"
+    if len(text_out) > MAX_RESULT_CHARS:
+        text_out = text_out[:MAX_RESULT_CHARS] + "... (truncated)"
+    return text_out
 
 
 @tool
@@ -30,39 +151,18 @@ def sql_db_list_tables() -> str:
     """
     List all user tables in the SQLite database.
 
-    This tool retrieves all table names from the connected database, excluding internal SQLite tables.
-
-    Args:
-        None
-
     Returns:
         str: A comma-separated list of table names in the database.
-
-    Notes:
-        Input is an empty string, output is a comma-separated list of tables in the database.
     """
-
     try:
         logger.info("Fetching list of database tables")
-
         inspector = inspect(engine)
-
-        tables = inspector.get_table_names()
-        logger.debug(f"Raw tables from inspector: {tables}")
-
-        tables = [t for t in tables if not t.startswith("sqlite_")]
-
+        tables = [t for t in inspector.get_table_names() if not t.startswith("sqlite_")]
         logger.info(f"Filtered user tables: {tables}")
-
-        result = ", ".join(tables)
-
-        logger.info(f"Table listing completed ({len(tables)} tables found)")
-
-        return result
-
+        return ", ".join(tables) if tables else "No user tables found."
     except Exception as e:
         logger.exception("Failed to list database tables")
-        return f"Error: {str(e)}"
+        return f"Error: {e}"
 
 
 @tool
@@ -70,216 +170,130 @@ def sql_db_schema(table_name: str) -> str:
     """
     Get schema information for a single database table.
 
-    This tool returns column-level metadata for a table to help understand its structure
-    before writing SQL queries.
-
     Args:
-        table_name (str):
-            Name of the table to inspect.
-            Example: "users"
+        table_name: Name of the table to inspect. Use `sql_db_list_tables` first.
 
     Returns:
-        str:
-            A human-readable schema description including:
-            - column names
-            - data types
-            - whether NULL is allowed
-            - primary key info
-
-    Notes:
-        Input must be a single valid table name.
-        Use `sql_db_list_tables` to discover available tables first.
+        str: Column names, types, nullability, and primary-key info.
     """
-
     try:
         logger.info(f"Schema inspection started for table: {table_name}")
-
         inspector = inspect(engine)
 
-        # validate table exists
         valid_tables = inspector.get_table_names()
-        logger.debug(f"Available tables: {valid_tables}")
-
         if table_name not in valid_tables:
             logger.warning(f"Table not found: {table_name}")
             return f"Error: table '{table_name}' not found."
 
         columns = inspector.get_columns(table_name)
-
         if not columns:
-            logger.warning(f"No columns found for table: {table_name}")
             return f"No columns found for table '{table_name}'."
 
         lines = [f"Schema for table: {table_name}\n"]
-
         for col in columns:
-            col_name = col.get("name")
-            col_type = col.get("type")
-            nullable = col.get("nullable")
-            primary_key = col.get("primary_key", False)
-
             lines.append(
-                f"- {col_name} | {col_type} | "
-                f"nullable={nullable} | pk={primary_key}"
+                f"- {col.get('name')} | {col.get('type')} | "
+                f"nullable={col.get('nullable')} | pk={col.get('primary_key', False)}"
             )
-
-        result = "\n".join(lines)
-
-        logger.info(
-            f"Schema inspection completed for {table_name} "
-            f"({len(columns)} columns)"
-        )
-
-        return result
-
+        return "\n".join(lines)
     except Exception as e:
         logger.exception(f"Schema inspection failed for table: {table_name}")
-        return f"Error: {str(e)}"
+        return f"Error: {e}"
 
 
 def sql_db_query(query: str) -> str:
     """
-    Execute a SQL query against the database and return results.
-
-    This tool is used to run READ-ONLY SQL queries and retrieve data from the database.
-
-    Args:
-        query (str):
-            A valid SQL query string.
-            Must be a SELECT query.
-
-    Returns:
-        str:
-            Query results as a string or an error message if execution fails.
-
-    Notes:
-        - Only read-only queries are allowed (SELECT).
-        - If the query fails, the error is returned.
-        - Use `sql_db_schema` if column errors occur.
+    Validate and execute a single read-only SQL query. Not exposed directly
+    to the LLM as a tool - always called through `run_sql_pipeline`, which
+    guarantees validation runs on whatever the final query ends up being.
     """
-
     try:
-        # Limit huge outputs
-        if "limit" not in query.lower():
-            query = query.rstrip(";") + " LIMIT 100"
-        logger.info(f"Executing SQL query: {query}")
+        clean_query = _validate_readonly_sql(query)
+        bounded_query = _ensure_limit(clean_query)
 
-        # Safety guard: enforce read-only queries
-        if not query.strip().lower().startswith("select"):
-            logger.warning("Blocked non-SELECT query attempt")
-            return "Error: Only SELECT queries are allowed."
-
-        with engine.connect() as conn:
-            result = conn.execute(text(query))
-            rows = result.fetchall()
-
+        logger.info(f"Executing SQL query: {bounded_query}")
+        rows = _execute_with_timeout(bounded_query)
         logger.info(f"Query executed successfully. Rows returned: {len(rows)}")
 
-        return str(rows)
-
+        return _format_rows(rows)
+    except TimeoutError:
+        logger.warning("Query interrupted after timeout")
+        return f"Error: query exceeded {QUERY_TIMEOUT_SECONDS}s and was interrupted."
+    except ValueError as e:
+        logger.warning(f"Query rejected by validator: {e}")
+        return f"Error: {e}"
     except Exception as e:
         logger.exception("SQL query execution failed")
-        return f"Error: {str(e)}"
+        return f"Error: {e}"
 
 
-def sql_db_query_checker(query: str) -> str:
+def sql_db_query_checker(query: str) -> Optional[str]:
     """
-    Validate and correct a SQL query before execution.
-
-    This tool uses an LLM to detect common SQL mistakes and rewrite the query if needed.
-
-    Args:
-        query (str):
-            SQL query to validate.
-
-    Returns:
-        str:
-            Corrected SQL query (or original if no issues are found).
-
-    Notes:
-        - Always run this before executing `sql_db_query`.
-        - Returns ONLY the final SQL query string.
+    Ask an LLM to review/fix common SQL mistakes. Returns the corrected query,
+    or None if the LLM call failed or its output doesn't pass validation
+    (callers should fall back to the original query in that case - this
+    function is an assist, not a source of truth for safety).
     """
+    prompt = f"""
+        You are a SQL expert specializing in SQLite.
+
+        Review the following SQL query and fix any mistakes.
+
+        Common issues to check:
+        - Using NOT IN with NULL values
+        - Using UNION instead of UNION ALL incorrectly
+        - Incorrect use of BETWEEN (inclusive vs exclusive ranges)
+        - Data type mismatches in WHERE clauses
+        - Missing or incorrect quoting of identifiers
+        - Incorrect number of function arguments
+        - Missing type casts
+        - Incorrect join conditions or columns
+
+        If the query is correct, return it unchanged.
+        Return ONLY the final SQL query, no explanation, no markdown fences.
+
+        SQL QUERY:
+        {query}
+    """.strip()
 
     try:
-        logger.info("SQL query validation started")
-
-        trigger_prompt = f"""
-            You are a SQL expert specializing in SQLite.
-
-            Review the following SQL query and fix any mistakes.
-
-            Common issues to check:
-            - Using NOT IN with NULL values
-            - Using UNION instead of UNION ALL incorrectly
-            - Incorrect use of BETWEEN (inclusive vs exclusive ranges)
-            - Data type mismatches in WHERE clauses
-            - Missing or incorrect quoting of identifiers
-            - Incorrect number of function arguments
-            - Missing type casts
-            - Incorrect join conditions or columns
-
-            If the query is correct, return it unchanged.
-
-            Return ONLY the final SQL query.
-
-            SQL QUERY:
-            {query}
-        """.strip()
-
-        logger.debug(f"Query sent to LLM for checking: {query}")
-
-        response = call_llm(trigger_prompt)
-        fixed_query = response.strip()
-
-        logger.info("SQL query validation completed")
-        logger.debug(f"Corrected query: {fixed_query}")
-
-        return fixed_query
-
+        raw = call_llm(prompt)
     except Exception as e:
-        logger.exception("SQL query checker failed")
-        return f"Error: {str(e)}"
-    
+        logger.warning(f"SQL checker LLM call failed: {e}")
+        return None
+
+    candidate = _strip_code_fences(raw)
+
+    try:
+        _validate_readonly_sql(candidate)
+    except ValueError as e:
+        logger.warning(f"Checker output failed validation, ignoring it: {e}")
+        return None
+
+    return candidate
+
 
 @tool
 def run_sql_pipeline(query: str) -> str:
     """
-    Safely execute a SQL query using a controlled validation and execution pipeline.
-
-    This is the ONLY tool that should be used for executing SQL queries.
-
-    Pipeline steps:
-        1. The query is first validated and corrected by an LLM-based SQL checker.
-        2. The corrected query is then executed against the SQLite database.
-        3. The final results are returned.
+    Execute a SQL query through a validated, read-only pipeline. This is the
+    ONLY tool that should be used for running SQL - use `sql_db_list_tables`
+    and `sql_db_schema` first to understand the database.
 
     Args:
-        query (str):
-            A natural-language-derived SQL query or raw SQL query.
+        query: A SQL query (SELECT, optionally with a WITH clause).
 
     Returns:
-        str:
-            The result of the executed SQL query or an error message.
-
-    Notes:
-        - This tool enforces query safety through automatic validation.
-        - Direct execution of SQL is not allowed outside this pipeline.
-        - Always use this tool for any database-related question.
+        str: Query results as a table, or an error message.
     """
+    logger.info(f"SQL pipeline started. Original query: {query}")
 
-    logger.info("SQL pipeline started")
-    logger.info(f"Original query: {query}")
+    corrected = sql_db_query_checker(query)
+    final_query = corrected if corrected is not None else query
 
-    # 1. validate
-    checked_query = sql_db_query_checker(query)
-    logger.info(f"Checked query: {checked_query}")
-
-    # 2. execute
-    result = sql_db_query(checked_query)
+    result = sql_db_query(final_query)
 
     logger.info("SQL pipeline completed")
-
     return result
 
 

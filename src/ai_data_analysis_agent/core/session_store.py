@@ -10,7 +10,7 @@ def get_file_path(session_id: str):
     return _FILE_STORE.get(session_id)
 
 
-def delete_session(session_id: str):
+def delete_file(session_id: str):
     file_path = _FILE_STORE.pop(session_id, None)
 
     if file_path and os.path.exists(file_path):

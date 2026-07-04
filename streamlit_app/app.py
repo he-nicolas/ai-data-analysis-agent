@@ -18,7 +18,7 @@ if "messages" not in st.session_state:
     ]
 
 if "data_source" not in st.session_state:
-    st.session_state.data_source = "Chinook Database"
+    st.session_state.data_source = "[Example] Music Database"
 
 if "uploaded_excel" not in st.session_state:
     st.session_state.uploaded_excel = None
@@ -74,7 +74,7 @@ with control_col:
 
     data_source = st.radio(
         "Choose data source",
-        ["Chinook Database", "Example Excel", "Upload Excel"]
+        ["[Example] Music Database", "[Example] Sales Excel", "Upload Excel"]
     )
 
     st.session_state.data_source = data_source
@@ -123,7 +123,7 @@ with control_col:
 
             try:
                 requests.post(
-                    "http://localhost:8000/session/end",
+                    "http://localhost:8000/file/remove",
                     json={"session_id": "default-session"},
                     timeout=10
                 )
@@ -132,6 +132,21 @@ with control_col:
 
             st.warning("File removed. Please upload an Excel file to continue.")
 
+    if (
+        st.session_state.data_source != "Upload Excel"
+        and st.session_state.uploaded_excel is not None
+    ):
+        try:
+            requests.post(
+                "http://localhost:8000/file/remove",
+                json={"session_id": "default-session"},
+                timeout=10
+            )
+        except Exception:
+            pass
+
+        st.session_state.uploaded_excel = None
+        st.session_state.uploaded_file_name = None
 
 # -----------------------
 # Left Column (Chat)

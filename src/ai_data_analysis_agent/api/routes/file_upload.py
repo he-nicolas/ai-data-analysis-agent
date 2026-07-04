@@ -11,7 +11,7 @@ UPLOAD_DIR = "data/uploaded_file"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-@router.post("/upload")
+@router.post("/file/upload")
 async def upload(file: UploadFile = File(...), session_id: str = Form(...)):
     start_time = time.time()
 

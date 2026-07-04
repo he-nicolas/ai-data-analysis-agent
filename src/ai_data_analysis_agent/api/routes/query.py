@@ -1,16 +1,18 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 import time
-import logging
 from ai_data_analysis_agent.agents.agent import run_agent
+from ai_data_analysis_agent.core.logging import get_logger
+
 
 router = APIRouter()
-logger = logging.getLogger("ai-agent")
+logger = get_logger(__name__)
 
 
 class QueryRequest(BaseModel):
     input: str
     session_id: str | None = None
+    data_source: str
 
 
 @router.post("/query")
@@ -29,6 +31,7 @@ def query(req: QueryRequest):
         result = run_agent(
             user_input=req.input,
             session_id=req.session_id,
+            data_source=req.data_source
         )
 
         latency = time.time() - start_time
