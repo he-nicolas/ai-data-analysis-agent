@@ -98,7 +98,7 @@ with control_col:
 
                 try:
                     response = requests.post(
-                        "http://localhost:8000/upload",
+                        "http://localhost:8000/file/upload",
                         files={
                             "file": (uploaded_file.name, uploaded_file.getvalue())
                         },
@@ -161,6 +161,13 @@ with chat_col:
 
     chat_container = st.container(height=500)
 
+    # A response is "pending" whenever the last message is from the user -
+    # i.e. we've shown their question but haven't gotten an answer back yet.
+    awaiting_response = (
+        len(st.session_state.messages) > 0
+        and st.session_state.messages[-1]["role"] == "user"
+    )
+
     with chat_container:
         st.markdown('<div class="chat-window">', unsafe_allow_html=True)
 
@@ -168,9 +175,36 @@ with chat_col:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
+        # Show a loading bubble while we wait for the backend, so the user's
+        # question is visible immediately and the wait is visible too.
+        if awaiting_response:
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    payload = {
+                        "input": st.session_state.messages[-1]["content"],
+                        "session_id": "default-session",
+                        "data_source": st.session_state.data_source
+                    }
+
+                    try:
+                        response = requests.post(API_URL, json=payload, timeout=60)
+                        response.raise_for_status()
+                        answer = response.json().get("response", "No response from server.")
+                    except Exception as e:
+                        answer = f"Error: {str(e)}"
+
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": answer
+            })
+            st.rerun()
+
         st.markdown('</div>', unsafe_allow_html=True)
 
-    user_input = st.chat_input("Ask a question about your data...")
+    user_input = st.chat_input(
+        "Ask a question about your data...",
+        disabled=awaiting_response,
+    )
 
 # -----------------------
 # Handle user input
@@ -180,25 +214,4 @@ if user_input:
         "role": "user",
         "content": user_input
     })
-
-    payload = {
-        "input": user_input,
-        "session_id": "default-session",
-        "data_source": st.session_state.data_source
-    }
-
-    try:
-        response = requests.post(API_URL, json=payload, timeout=60)
-        response.raise_for_status()
-
-        answer = response.json().get("response", "No response from server.")
-
-    except Exception as e:
-        answer = f"Error: {str(e)}"
-
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": answer
-    })
-
     st.rerun()

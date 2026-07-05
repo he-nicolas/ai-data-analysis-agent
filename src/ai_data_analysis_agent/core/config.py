@@ -10,4 +10,7 @@ class Settings:
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
     LLM_MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
 
-    DB_PATH = os.getenv("DB_PATH", "data/db/chinook.db")
+    EXAMPLE_DB = os.getenv("EXAMPLE_DB")
+    EXAMPLE_FILE = os.getenv("EXAMPLE_FILE")
+
+    UPLOAD_DIR =os.getenv("UPLOAD_DIR")

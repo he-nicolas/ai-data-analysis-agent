@@ -9,7 +9,7 @@ import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from ai_data_analysis_agent.core.session_store import get_file_path
+from ai_data_analysis_agent.core.file_store import get_file_path
 from ai_data_analysis_agent.core.llm import call_llm
 from ai_data_analysis_agent.core.config import Settings
 
@@ -133,7 +133,7 @@ def excel_schema(config: RunnableConfig, sheet_name: Optional[str] = None) -> st
         for col in df.columns:
             dtype = str(df[col].dtype)
             n_null = int(df[col].isna().sum())
-            sample = df[col].dropna().astype(str).head(3).tolist()
+            sample = df[col].dropna().head(3).tolist()
             lines.append(f"- {col} | dtype={dtype} | nulls={n_null} | sample={sample}")
 
         logger.info(
@@ -389,3 +389,6 @@ def run_excel_pipeline(instruction: str, config: RunnableConfig) -> str:
         f"Excel pipeline exhausted {CODE_GEN_MAX_ATTEMPTS} attempts. Last error: {last_error}"
     )
     return f"Error: could not produce a valid analysis after {CODE_GEN_MAX_ATTEMPTS} attempts. Last error: {last_error}"
+
+
+excel_tools = [excel_list_sheets, excel_schema, run_excel_pipeline]

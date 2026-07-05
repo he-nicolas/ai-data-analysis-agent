@@ -51,7 +51,7 @@ _provider = get_provider()
 
 
 def call_llm(prompt: str) -> str:
-    return _provider.genexrate(prompt)
+    return _provider.generate(prompt)
 
 
 def get_llm():

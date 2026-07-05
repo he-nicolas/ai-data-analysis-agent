@@ -47,9 +47,8 @@ _TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 def _build_readonly_engine() -> Engine:
     """
     Open the SQLite file in true read-only mode via its URI filename feature.
-    This is enforced by SQLite itself, independent of any query parsing we do.
     """
-    uri = f"sqlite:///file:{Settings.DB_PATH}?mode=ro&uri=true"
+    uri = f"sqlite:///file:{Settings.EXAMPLE_DB}?mode=ro&uri=true"
     return create_engine(uri, connect_args={"check_same_thread": False})
 
 
