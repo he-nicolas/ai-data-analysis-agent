@@ -5,6 +5,7 @@ from ai_data_analysis_agent.tools.sql_tools import sql_tools
 from ai_data_analysis_agent.tools.excel_tools import excel_tools
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
+from langsmith import traceable
 
 llm = get_llm()
 
@@ -22,7 +23,7 @@ excel_agent = create_agent(
     checkpointer=InMemorySaver(),
 )
 
-
+@traceable(name="agent_run")
 def run_agent(user_input: str, session_id: str, data_source: str):
     if data_source == "[Example] Sales Excel":
         agent = excel_agent
@@ -44,7 +45,7 @@ def run_agent(user_input: str, session_id: str, data_source: str):
             "session_id": session_id,
             "data_source": data_source,
         },
-        "recursion_limit": 15,
+        "recursion_limit": 10,
     }
 
     if not is_answerable(user_input, source_type, config):
@@ -56,5 +57,7 @@ def run_agent(user_input: str, session_id: str, data_source: str):
         },
         config=config,
     )
+
+    print(result["messages"])
 
     return result["messages"][-1].content

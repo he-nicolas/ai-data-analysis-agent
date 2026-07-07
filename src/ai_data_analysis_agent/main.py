@@ -12,7 +12,6 @@ from ai_data_analysis_agent.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     problems = []

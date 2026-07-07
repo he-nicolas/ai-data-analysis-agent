@@ -10,6 +10,7 @@ from ai_data_analysis_agent.core.llm import call_llm
 from ai_data_analysis_agent.core.text_utils import strip_code_fences
 from ai_data_analysis_agent.tools.sql_validation import ensure_limit, validate_readonly_sql
 from langchain_core.tools import tool
+from langsmith import traceable
 
 logger = get_logger(__name__)
 
@@ -70,6 +71,7 @@ def _format_rows(rows: list[dict[str, Any]]) -> str:
 
 
 @tool
+# @traceable(name="sql_tool_list_tables")
 def sql_db_list_tables() -> str:
     """
     List all user tables in the SQLite database.
@@ -89,6 +91,7 @@ def sql_db_list_tables() -> str:
 
 
 @tool
+# @traceable(name="sql_tool_db_schema")
 def sql_db_schema(table_name: str) -> str:
     """
     Get schema information for a single database table.
@@ -197,6 +200,7 @@ def sql_db_query_checker(query: str) -> Optional[str]:
 
 
 @tool
+# @traceable(name="sql_tool_run_pipeline")
 def run_sql_pipeline(query: str) -> str:
     """
     Execute a SQL query through a validated, read-only pipeline. This is the
@@ -209,7 +213,7 @@ def run_sql_pipeline(query: str) -> str:
     Returns:
         str: Query results as a table, or an error message.
     """
-    logger.info(f"SQL pipeline started. Original query: {query}")
+    logger.info(f"SQL pipeline started")
 
     corrected = sql_db_query_checker(query)
     final_query = corrected if corrected is not None else query

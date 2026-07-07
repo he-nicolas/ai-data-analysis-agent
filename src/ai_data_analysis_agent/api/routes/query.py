@@ -2,6 +2,7 @@ import time
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from langsmith import traceable
 
 from ai_data_analysis_agent.agents.agent import run_agent
 from ai_data_analysis_agent.core.logging import get_logger
@@ -18,6 +19,7 @@ class QueryRequest(BaseModel):
 
 
 @router.post("/query")
+@traceable(name="query_endpoint")
 def query(req: QueryRequest):
     start_time = time.time()
 

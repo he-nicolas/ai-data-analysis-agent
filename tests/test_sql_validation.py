@@ -49,7 +49,7 @@ class TestValidateReadonlySql:
             validate_readonly_sql(f"{keyword} something")
 
     def test_rejects_delete_disguised_as_select_adjacent(self):
-        with pytest.raises(ValueError, match="Disallowed keyword"):
+        with pytest.raises(ValueError, match="single SQL statement"):
             validate_readonly_sql("SELECT * FROM tracks WHERE 1=1; DELETE FROM tracks")
 
     def test_rejects_write_keyword_inside_cte(self):

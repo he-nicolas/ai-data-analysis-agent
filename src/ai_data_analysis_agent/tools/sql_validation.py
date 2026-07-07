@@ -11,21 +11,57 @@ Requires: `pip install sqlparse`
 
 from __future__ import annotations
 
-import re
-
 import sqlparse
+from sqlparse.tokens import Keyword, DML, Literal, Comment
 
 MAX_ROWS_DEFAULT = 100
 
 # Keywords that should never appear in a read-only query, anywhere in the
 # statement (including inside a CTE, subquery, or after a semicolon).
 FORBIDDEN_KEYWORDS = {
-    "insert", "update", "delete", "drop", "alter", "create", "replace",
-    "attach", "detach", "pragma", "vacuum", "reindex", "grant", "revoke",
-    "truncate", "begin", "commit", "rollback",
+    "insert",
+    "update",
+    "delete",
+    "drop",
+    "alter",
+    "create",
+    "replace",
+    "attach",
+    "detach",
+    "pragma",
+    "vacuum",
+    "reindex",
+    "grant",
+    "revoke",
+    "truncate",
+    "begin",
+    "commit",
+    "rollback",
 }
 
-_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+def _contains_forbidden_keyword(statement) -> set[str]:
+    """
+    Return a set of forbidden keywords found in the SQL statement,
+    ignoring string literals and comments.
+    """
+    hits = set()
+
+    for token in statement.flatten():
+        # Skip string literals
+        if token.ttype in Literal.String:
+            continue
+
+        # Skip comments
+        if token.ttype in Comment:
+            continue
+
+        val = token.value.lower()
+
+        if val in FORBIDDEN_KEYWORDS:
+            hits.add(val)
+
+    return hits
 
 
 def validate_readonly_sql(query: str) -> str:
@@ -41,14 +77,23 @@ def validate_readonly_sql(query: str) -> str:
 
     stmt = statements[0].strip().rstrip(";").strip()
 
-    tokens = {t.lower() for t in _TOKEN_RE.findall(stmt)}
-    forbidden_hits = tokens & FORBIDDEN_KEYWORDS
-    if forbidden_hits:
-        raise ValueError(f"Disallowed keyword(s) in query: {', '.join(sorted(forbidden_hits))}")
+    parsed = sqlparse.parse(stmt)[0]
 
-    first_word = stmt.split(None, 1)[0].lower() if stmt else ""
-    if first_word not in {"select", "with"}:
-        raise ValueError("Only SELECT statements (optionally starting with WITH) are allowed.")
+    first_token = next((t for t in parsed.tokens if not t.is_whitespace), None)
+
+    if first_token and first_token.value.upper() == "EXPLAIN":
+        raise ValueError("Only SELECT statements are allowed.")
+
+    forbidden_hits = _contains_forbidden_keyword(parsed)
+    if forbidden_hits:
+        raise ValueError(
+            f"Disallowed keyword(s) in query: {', '.join(sorted(forbidden_hits))}"
+        )
+
+    if not first_token or first_token.value.lower() not in {"select", "with"}:
+        raise ValueError(
+            "Only SELECT statements (optionally starting with WITH) are allowed."
+        )
 
     return stmt
 
@@ -57,9 +102,11 @@ def ensure_limit(query: str, limit: int = MAX_ROWS_DEFAULT) -> str:
     """Append a LIMIT clause via the parser, not a substring check, unless one already exists."""
     parsed = sqlparse.parse(query)[0]
     has_limit = any(
-        tok.ttype is sqlparse.tokens.Keyword and tok.value.upper() == "LIMIT"
-        for tok in parsed.tokens
+        tok.ttype in Keyword and tok.value.upper() == "LIMIT"
+        for tok in parsed.flatten()
     )
+
     if has_limit:
         return query
+
     return f"{query} LIMIT {limit}"

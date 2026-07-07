@@ -6,6 +6,7 @@ from typing import Any, Optional
 import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langsmith import traceable
 
 from ai_data_analysis_agent.core.file_store import get_file_path
 from ai_data_analysis_agent.core.llm import call_llm
@@ -91,6 +92,7 @@ def load_dataframe(file_path: str, sheet_name: Optional[str] = None) -> pd.DataF
 
 
 @tool
+# @traceable(name="excel_tool_list_sheets")
 def excel_list_sheets(config: RunnableConfig) -> str:
     """List all sheet names available in the user's Excel file."""
     logger.info("Sheet listing started")
@@ -111,6 +113,7 @@ def excel_list_sheets(config: RunnableConfig) -> str:
 
 
 @tool
+# @traceable(name="excel_tool_schema")
 def excel_schema(config: RunnableConfig, sheet_name: Optional[str] = None) -> str:
     """
     Get column names, dtypes, null counts, and sample values for a sheet.
@@ -244,6 +247,7 @@ def _run_generated_code(code: str, df: pd.DataFrame) -> str:
 
 
 @tool
+# @traceable(name="excel_tool_run_pipeline")
 def run_excel_pipeline(instruction: str, config: RunnableConfig) -> str:
     """
     Analyze the current Excel sheet using pandas, generated on the fly from a
