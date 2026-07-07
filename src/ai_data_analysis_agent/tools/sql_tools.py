@@ -1,14 +1,14 @@
-import re
 import threading
 from typing import Any, Optional
 
-import sqlparse
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 
 from ai_data_analysis_agent.core.config import Settings
 from ai_data_analysis_agent.core.logging import get_logger
 from ai_data_analysis_agent.core.llm import call_llm
+from ai_data_analysis_agent.core.text_utils import strip_code_fences
+from ai_data_analysis_agent.tools.sql_validation import ensure_limit, validate_readonly_sql
 from langchain_core.tools import tool
 
 logger = get_logger(__name__)
@@ -17,31 +17,6 @@ QUERY_TIMEOUT_SECONDS = 10
 MAX_ROWS = 100
 MAX_RESULT_CHARS = 4000
 MAX_CELL_CHARS = 300
-
-# Keywords that should never appear in a read-only query, anywhere in the
-# statement (including inside a CTE, subquery, or after a semicolon).
-_FORBIDDEN_KEYWORDS = {
-    "insert",
-    "update",
-    "delete",
-    "drop",
-    "alter",
-    "create",
-    "replace",
-    "attach",
-    "detach",
-    "pragma",
-    "vacuum",
-    "reindex",
-    "grant",
-    "revoke",
-    "truncate",
-    "begin",
-    "commit",
-    "rollback",
-}
-
-_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def _build_readonly_engine() -> Engine:
@@ -53,57 +28,6 @@ def _build_readonly_engine() -> Engine:
 
 
 engine = _build_readonly_engine()
-
-
-def _strip_code_fences(text_: str) -> str:
-    text_ = text_.strip()
-    if text_.startswith("```"):
-        lines = text_.splitlines()[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        text_ = "\n".join(lines)
-    return text_.strip()
-
-
-def _validate_readonly_sql(query: str) -> str:
-    """
-    Raise ValueError unless `query` is exactly one read-only statement.
-    Returns the query with any trailing semicolon stripped.
-    """
-    statements = [s for s in sqlparse.split(query) if s.strip()]
-    if len(statements) == 0:
-        raise ValueError("No SQL statement found.")
-    if len(statements) > 1:
-        raise ValueError("Only a single SQL statement is allowed per call.")
-
-    stmt = statements[0].strip().rstrip(";").strip()
-
-    tokens = {t.lower() for t in _TOKEN_RE.findall(stmt)}
-    forbidden_hits = tokens & _FORBIDDEN_KEYWORDS
-    if forbidden_hits:
-        raise ValueError(
-            f"Disallowed keyword(s) in query: {', '.join(sorted(forbidden_hits))}"
-        )
-
-    first_word = stmt.split(None, 1)[0].lower() if stmt else ""
-    if first_word not in {"select", "with"}:
-        raise ValueError(
-            "Only SELECT statements (optionally starting with WITH) are allowed."
-        )
-
-    return stmt
-
-
-def _ensure_limit(query: str, limit: int = MAX_ROWS) -> str:
-    """Append a LIMIT clause via the parser, not a substring check, unless one already exists."""
-    parsed = sqlparse.parse(query)[0]
-    has_limit = any(
-        tok.ttype is sqlparse.tokens.Keyword and tok.value.upper() == "LIMIT"
-        for tok in parsed.tokens
-    )
-    if has_limit:
-        return query
-    return f"{query} LIMIT {limit}"
 
 
 def _execute_with_timeout(
@@ -207,8 +131,8 @@ def sql_db_query(query: str) -> str:
     guarantees validation runs on whatever the final query ends up being.
     """
     try:
-        clean_query = _validate_readonly_sql(query)
-        bounded_query = _ensure_limit(clean_query)
+        clean_query = validate_readonly_sql(query)
+        bounded_query = ensure_limit(clean_query)
 
         logger.info(f"Executing SQL query: {bounded_query}")
         rows = _execute_with_timeout(bounded_query)
@@ -261,10 +185,10 @@ def sql_db_query_checker(query: str) -> Optional[str]:
         logger.warning(f"SQL checker LLM call failed: {e}")
         return None
 
-    candidate = _strip_code_fences(raw)
+    candidate = strip_code_fences(raw)
 
     try:
-        _validate_readonly_sql(candidate)
+        validate_readonly_sql(candidate)
     except ValueError as e:
         logger.warning(f"Checker output failed validation, ignoring it: {e}")
         return None

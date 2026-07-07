@@ -1,5 +1,3 @@
-import ast
-import builtins
 import logging
 import multiprocessing
 from pathlib import Path
@@ -12,6 +10,8 @@ from langchain_core.tools import tool
 from ai_data_analysis_agent.core.file_store import get_file_path
 from ai_data_analysis_agent.core.llm import call_llm
 from ai_data_analysis_agent.core.config import Settings
+from ai_data_analysis_agent.core.text_utils import strip_code_fences
+from ai_data_analysis_agent.tools.excel_validation import restricted_globals, validate_code
 
 logger = logging.getLogger(__name__)
 
@@ -167,112 +167,6 @@ Rules:
 Return ONLY the Python code. No explanation, no markdown fences.
 """
 
-# Builtins that are safe to expose inside the sandboxed exec.
-_ALLOWED_BUILTIN_NAMES = {
-    "abs",
-    "all",
-    "any",
-    "bool",
-    "dict",
-    "enumerate",
-    "filter",
-    "float",
-    "int",
-    "len",
-    "list",
-    "map",
-    "max",
-    "min",
-    "range",
-    "reversed",
-    "round",
-    "set",
-    "sorted",
-    "str",
-    "sum",
-    "tuple",
-    "zip",
-}
-
-# Names that must never appear in generated code, whether as identifiers or calls.
-_FORBIDDEN_NAMES = {
-    "__import__",
-    "eval",
-    "exec",
-    "compile",
-    "open",
-    "input",
-    "getattr",
-    "setattr",
-    "delattr",
-    "globals",
-    "locals",
-    "vars",
-    "dir",
-    "help",
-    "exit",
-    "quit",
-    "breakpoint",
-    "memoryview",
-    "os",
-    "sys",
-    "subprocess",
-}
-
-# DataFrame/Series methods that write data out or otherwise escape the sandbox.
-_FORBIDDEN_ATTRS = {
-    "to_csv",
-    "to_excel",
-    "to_pickle",
-    "to_sql",
-    "to_json",
-    "to_parquet",
-    "to_feather",
-    "to_hdf",
-    "to_clipboard",
-}
-
-
-def _strip_code_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines)
-    return text.strip()
-
-
-def _validate_code(code: str) -> None:
-    """Raise ValueError if generated code contains anything disallowed."""
-    try:
-        tree = ast.parse(code, mode="exec")
-    except SyntaxError as e:
-        raise ValueError(f"Generated code has a syntax error: {e}") from e
-
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            raise ValueError("Generated code may not import modules.")
-        if isinstance(node, (ast.Global, ast.Nonlocal)):
-            raise ValueError("Generated code may not use global/nonlocal.")
-        if isinstance(node, ast.Name) and node.id in _FORBIDDEN_NAMES:
-            raise ValueError(f"Use of '{node.id}' is not allowed.")
-        if isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                raise ValueError("Access to dunder attributes is not allowed.")
-            if node.attr in _FORBIDDEN_ATTRS:
-                raise ValueError(
-                    f"Call to '{node.attr}' is not allowed (no file/network I/O)."
-                )
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            if node.func.id in _FORBIDDEN_NAMES:
-                raise ValueError(f"Call to '{node.func.id}' is not allowed.")
-
-
-def _restricted_globals(df: pd.DataFrame) -> dict:
-    safe_builtins = {name: getattr(builtins, name) for name in _ALLOWED_BUILTIN_NAMES}
-    return {"__builtins__": safe_builtins, "pd": pd, "df": df}
-
 
 def _execute_in_subprocess(
     code: str, df: pd.DataFrame, result_queue: "multiprocessing.Queue"
@@ -291,7 +185,7 @@ def _execute_in_subprocess(
         except (ImportError, ValueError, OSError):
             pass  # e.g. Windows, or limit not settable in this environment
 
-        exec_globals = _restricted_globals(df)
+        exec_globals = restricted_globals(df)
         exec_locals: dict[str, Any] = {}
         exec(
             compile(code, "<generated>", "exec"), exec_globals, exec_locals
@@ -319,7 +213,7 @@ def _execute_in_subprocess(
 
 
 def _run_generated_code(code: str, df: pd.DataFrame) -> str:
-    _validate_code(code)
+    validate_code(code)
 
     try:
         ctx = multiprocessing.get_context("fork")
@@ -375,7 +269,7 @@ def run_excel_pipeline(instruction: str, config: RunnableConfig) -> str:
 
         try:
             raw_code = call_llm(prompt)
-            code = _strip_code_fences(raw_code)
+            code = strip_code_fences(raw_code)
             logger.debug(f"Generated code:\n{code}")
 
             result = _run_generated_code(code, df)

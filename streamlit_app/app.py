@@ -1,3 +1,4 @@
+import uuid
 import streamlit as st
 from st_flexible_callout_elements import flexible_callout
 import requests
@@ -7,8 +8,11 @@ API_URL = "http://localhost:8000/query"
 st.set_page_config(page_title="AI Data Analysis Agent", layout="wide")
 
 # -----------------------
-# Session state init (IMPORTANT)
+# Session state init
 # -----------------------
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -102,7 +106,7 @@ with control_col:
                         files={
                             "file": (uploaded_file.name, uploaded_file.getvalue())
                         },
-                        data={"session_id": "default-session"},
+                        data={"session_id": st.session_state.session_id},
                         timeout=60
                     )
 
@@ -124,7 +128,7 @@ with control_col:
             try:
                 requests.post(
                     "http://localhost:8000/file/remove",
-                    json={"session_id": "default-session"},
+                    json={"session_id": st.session_state.session_id},
                     timeout=10
                 )
             except Exception:
@@ -139,7 +143,7 @@ with control_col:
         try:
             requests.post(
                 "http://localhost:8000/file/remove",
-                json={"session_id": "default-session"},
+                json={"session_id": st.session_state.session_id},
                 timeout=10
             )
         except Exception:
@@ -182,7 +186,7 @@ with chat_col:
                 with st.spinner("Thinking..."):
                     payload = {
                         "input": st.session_state.messages[-1]["content"],
-                        "session_id": "default-session",
+                        "session_id": st.session_state.session_id,
                         "data_source": st.session_state.data_source
                     }
 
