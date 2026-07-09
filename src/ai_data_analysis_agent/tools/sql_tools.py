@@ -8,9 +8,11 @@ from ai_data_analysis_agent.core.config import Settings
 from ai_data_analysis_agent.core.logging import get_logger
 from ai_data_analysis_agent.core.llm import call_llm
 from ai_data_analysis_agent.core.text_utils import strip_code_fences
-from ai_data_analysis_agent.tools.sql_validation import ensure_limit, validate_readonly_sql
+from ai_data_analysis_agent.tools.sql_validation import (
+    ensure_limit,
+    validate_readonly_sql,
+)
 from langchain_core.tools import tool
-from langsmith import traceable
 
 logger = get_logger(__name__)
 
@@ -55,7 +57,11 @@ def _format_rows(rows: list[dict[str, Any]]) -> str:
 
     def fmt_cell(v: Any) -> str:
         s = str(v)
-        return s if len(s) <= MAX_CELL_CHARS else s[:MAX_CELL_CHARS] + "...(truncated)"
+        return (
+            s
+            if len(s) <= MAX_CELL_CHARS
+            else s[:MAX_CELL_CHARS] + "...(truncated)"
+        )
 
     columns = list(rows[0].keys())
     lines = [" | ".join(columns)]
@@ -71,7 +77,6 @@ def _format_rows(rows: list[dict[str, Any]]) -> str:
 
 
 @tool
-# @traceable(name="sql_tool_list_tables")
 def sql_db_list_tables() -> str:
     """
     List all user tables in the SQLite database.
@@ -82,7 +87,11 @@ def sql_db_list_tables() -> str:
     try:
         logger.info("Fetching list of database tables")
         inspector = inspect(engine)
-        tables = [t for t in inspector.get_table_names() if not t.startswith("sqlite_")]
+        tables = [
+            t
+            for t in inspector.get_table_names()
+            if not t.startswith("sqlite_")
+        ]
         logger.info(f"Filtered user tables: {tables}")
         return ", ".join(tables) if tables else "No user tables found."
     except Exception as e:
@@ -91,7 +100,6 @@ def sql_db_list_tables() -> str:
 
 
 @tool
-# @traceable(name="sql_tool_db_schema")
 def sql_db_schema(table_name: str) -> str:
     """
     Get schema information for a single database table.
@@ -200,7 +208,6 @@ def sql_db_query_checker(query: str) -> Optional[str]:
 
 
 @tool
-# @traceable(name="sql_tool_run_pipeline")
 def run_sql_pipeline(query: str) -> str:
     """
     Execute a SQL query through a validated, read-only pipeline. This is the
@@ -213,7 +220,7 @@ def run_sql_pipeline(query: str) -> str:
     Returns:
         str: Query results as a table, or an error message.
     """
-    logger.info(f"SQL pipeline started")
+    logger.info("SQL pipeline started")
 
     corrected = sql_db_query_checker(query)
     final_query = corrected if corrected is not None else query

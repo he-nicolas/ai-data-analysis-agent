@@ -6,11 +6,12 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from ai_data_analysis_agent.api.routes import file_removal, query, file_upload
+from ai_data_analysis_agent.api.routes import file_removal, query, file_upload, health
 from ai_data_analysis_agent.core.config import Settings
 from ai_data_analysis_agent.core.logging import get_logger
 
 logger = get_logger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -75,11 +76,9 @@ def root():
 app.include_router(query.router)
 app.include_router(file_upload.router)
 app.include_router(file_removal.router)
-
+app.include_router(health.router)
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "ai_data_analysis_agent.main:app", host="0.0.0.0", port=8000, reload=True
-    )
+    uvicorn.run("ai_data_analysis_agent.main:app", host="0.0.0.0", port=8000, reload=True)

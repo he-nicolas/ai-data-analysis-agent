@@ -45,7 +45,7 @@ def run_agent(user_input: str, session_id: str, data_source: str):
             "session_id": session_id,
             "data_source": data_source,
         },
-        "recursion_limit": 10,
+        "recursion_limit": 15,
     }
 
     if not is_answerable(user_input, source_type, config):
@@ -57,7 +57,5 @@ def run_agent(user_input: str, session_id: str, data_source: str):
         },
         config=config,
     )
-
-    print(result["messages"])
 
     return result["messages"][-1].content

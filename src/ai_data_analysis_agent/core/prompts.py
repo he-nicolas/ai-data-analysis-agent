@@ -115,7 +115,7 @@ ANSWERING:
 
 def get_answerability_prompt(schema: str, user_input: str) -> str:
     return f"""
-You are a strict data validator.
+You are a data validator.
 
 You are given:
 - The schema of a connected data source (one or more tables/sheets)
@@ -127,11 +127,11 @@ Schema:
 Question:
 {user_input}
 
-Decide if the question can be answered using ONLY the data described in this
+Decide if the question could be answered using ONLY the data described in this
 schema - including via simple computations over it: aggregation (sum,
-average, count, min/max), filtering, grouping, and joining across multiple
+average, count, min/max), filtering, grouping, multiplying columns and joining across multiple
 tables/sheets when they share a common column. The schema does not need to
-literally contain the answer - it needs to contain the columns (and, for
+literally contain the answer - it needs to contain the exact or similar columns (and, for
 multi-table schemas, the join keys) required to compute it.
 
 Examples of answerable questions given a relevant schema:
@@ -142,9 +142,14 @@ Examples of answerable questions given a relevant schema:
 Rules:
 - Assume no external knowledge exists beyond this schema
 - If none of the columns/tables are relevant to the question, answer NO
-- If the question needs a column or table that isn't present, answer NO
+- If the question needs a table that isn't present, answer NO
 - If a computation over existing columns (as described above) would answer
   it, answer YES
 
-Return only one word: YES or NO
+Respond with EXACTLY one word and nothing else - no punctuation, no
+explanation, no markdown. Valid responses: YES or NO
+ 
+Examples of correctly formatted responses:
+YES
+NO
 """.strip()

@@ -8,7 +8,9 @@ from typing import Any, Optional
 from ai_data_analysis_agent.agents.agent import run_agent
 from ai_data_analysis_agent.core.llm import call_llm
 
-REFUSAL_MESSAGE = "I can only help with questions related to the connected data sources."
+REFUSAL_MESSAGE = (
+    "I can only help with questions related to the connected data sources."
+)
 DATASETS_DIR = Path(__file__).parent / "datasets"
 
 
@@ -58,7 +60,9 @@ def _check_contains_number(actual: str, case: EvalCase) -> tuple[bool, str]:
     actual_num = _extract_number(actual)
     if actual_num is None:
         return False, "no number found in response"
-    passed = abs(actual_num - expected_num) <= max(abs(expected_num) * case.tolerance, 1e-9)
+    passed = abs(actual_num - expected_num) <= max(
+        abs(expected_num) * case.tolerance, 1e-9
+    )
     return passed, "" if passed else f"expected ~{expected_num}, got {actual_num}"
 
 
@@ -79,7 +83,17 @@ Does the actual answer correctly convey the same information as the
 reference, allowing for differences in wording/formatting? Factual or
 numeric differences mean NO. Reply with only YES or NO.
 """.strip()
-    verdict = call_llm(prompt).strip().upper()
+    verdict = (
+        call_llm(
+            prompt,
+            langsmith_extra={
+                "metadata": {"eval_case_id": case.id, "category": case.category},
+                "tags": ["eval-judge"],
+            },
+        )
+        .strip()
+        .upper()
+    )
     passed = verdict.startswith("YES")
     return passed, f"judge said: {verdict}"
 
@@ -94,13 +108,17 @@ _CHECKERS = {
 
 def run_case(case: EvalCase, session_id: str = "eval-session") -> EvalResult:
     start = time.time()
-    actual = run_agent(user_input=case.question, session_id=session_id, data_source=case.data_source)
+    actual = run_agent(
+        user_input=case.question, session_id=session_id, data_source=case.data_source
+    )
     latency = time.time() - start
 
     checker = _CHECKERS[case.check_type]
     passed, detail = checker(actual, case)
 
-    return EvalResult(case=case, passed=passed, actual=actual, latency=latency, detail=detail)
+    return EvalResult(
+        case=case, passed=passed, actual=actual, latency=latency, detail=detail
+    )
 
 
 def run_suite(dataset_paths: list[Path]) -> list[EvalResult]:

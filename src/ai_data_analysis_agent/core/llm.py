@@ -4,11 +4,13 @@ from openai import OpenAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from ai_data_analysis_agent.core.config import Settings
+from langsmith import traceable
+from typing import Optional
 
 
 class LLMProvider(ABC):
     @abstractmethod
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, model: Optional[str] = None) -> str:
         pass
 
 
@@ -16,9 +18,9 @@ class GroqProvider(LLMProvider):
     def __init__(self):
         self.client = Groq(api_key=Settings.GROQ_API_KEY)
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, model: Optional[str] = None) -> str:
         response = self.client.chat.completions.create(
-            model=Settings.LLM_MODEL,
+            model=model or Settings.LLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
         )
         return response.choices[0].message.content
@@ -28,12 +30,13 @@ class OpenAIProvider(LLMProvider):
     def __init__(self):
         self.client = OpenAI(api_key=Settings.OPENAI_API_KEY)
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, model: Optional[str] = None) -> str:
         response = self.client.chat.completions.create(
-            model=Settings.LLM_MODEL,
+            model=model or Settings.LLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
         )
         return response.choices[0].message.content
+
 
 # Add more providers here as needed
 
@@ -50,8 +53,9 @@ def get_provider() -> LLMProvider:
 _provider = get_provider()
 
 
-def call_llm(prompt: str) -> str:
-    return _provider.generate(prompt)
+@traceable(name="llm_call")
+def call_llm(prompt: str, model: Optional[str] = None) -> str:
+    return _provider.generate(prompt, model=model)
 
 
 def get_llm():

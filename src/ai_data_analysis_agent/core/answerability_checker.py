@@ -7,6 +7,7 @@ from ai_data_analysis_agent.tools.sql_tools import sql_db_list_tables, sql_db_sc
 from ai_data_analysis_agent.tools.excel_tools import excel_list_sheets, excel_schema
 from ai_data_analysis_agent.core.llm import call_llm
 from ai_data_analysis_agent.core.logging import get_logger
+from ai_data_analysis_agent.core.config import Settings
 
 logger = get_logger(__name__)
 
@@ -104,7 +105,7 @@ def is_answerable(
 
     prompt = get_answerability_prompt(schema, user_input)
 
-    response = call_llm(prompt).strip().upper()
+    response = call_llm(prompt, model=Settings.GUARD_LLM_MODEL).strip().upper()
     logger.info(f"Answerability check result: {response} (source_type={source_type})")
 
     return response.startswith("YES")

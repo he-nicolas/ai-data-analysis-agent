@@ -1,9 +1,10 @@
+import os
 import uuid
 import streamlit as st
 from st_flexible_callout_elements import flexible_callout
 import requests
 
-API_URL = "http://localhost:8000/query"
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="AI Data Analysis Agent", layout="wide")
 
@@ -102,7 +103,7 @@ with control_col:
 
                 try:
                     response = requests.post(
-                        "http://localhost:8000/file/upload",
+                        f"{API_BASE_URL}/file/upload",
                         files={
                             "file": (uploaded_file.name, uploaded_file.getvalue())
                         },
@@ -127,7 +128,7 @@ with control_col:
 
             try:
                 requests.post(
-                    "http://localhost:8000/file/remove",
+                    f"{API_BASE_URL}/file/remove",
                     json={"session_id": st.session_state.session_id},
                     timeout=10
                 )
@@ -142,7 +143,7 @@ with control_col:
     ):
         try:
             requests.post(
-                "http://localhost:8000/file/remove",
+                f"{API_BASE_URL}/file/remove",
                 json={"session_id": st.session_state.session_id},
                 timeout=10
             )
@@ -191,7 +192,7 @@ with chat_col:
                     }
 
                     try:
-                        response = requests.post(API_URL, json=payload, timeout=60)
+                        response = requests.post(f"{API_BASE_URL}/query", json=payload, timeout=60)
                         response.raise_for_status()
                         answer = response.json().get("response", "No response from server.")
                     except Exception as e:

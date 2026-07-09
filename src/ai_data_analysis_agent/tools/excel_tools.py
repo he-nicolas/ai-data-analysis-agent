@@ -1,4 +1,3 @@
-import logging
 import multiprocessing
 from pathlib import Path
 from typing import Any, Optional
@@ -6,15 +5,18 @@ from typing import Any, Optional
 import pandas as pd
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from langsmith import traceable
 
 from ai_data_analysis_agent.core.file_store import get_file_path
 from ai_data_analysis_agent.core.llm import call_llm
 from ai_data_analysis_agent.core.config import Settings
+from ai_data_analysis_agent.core.logging import get_logger
 from ai_data_analysis_agent.core.text_utils import strip_code_fences
-from ai_data_analysis_agent.tools.excel_validation import restricted_globals, validate_code
+from ai_data_analysis_agent.tools.excel_validation import (
+    restricted_globals,
+    validate_code,
+)
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 MAX_RESULT_CHARS = 4000
@@ -40,7 +42,7 @@ class _DataFrameCache:
 
         cached = self._cache.get(key)
         if cached is not None and cached[0] == mtime:
-            return cached[1].copy(deep=True)
+            return cached[1]
 
         df = pd.read_excel(file_path, sheet_name=sheet_name)
         if isinstance(df, dict):
@@ -68,14 +70,10 @@ def resolve_file_path(config: RunnableConfig) -> str:
 
     if data_source == "Upload Excel":
         if not session_id:
-            raise ValueError(
-                "No session_id found in config; cannot resolve uploaded file."
-            )
+            raise ValueError("No session_id found in config; cannot resolve uploaded file.")
         file_path = get_file_path(session_id)
         if not file_path or not Path(file_path).exists():
-            raise ValueError(
-                "No file uploaded for this session, or the file is missing on disk."
-            )
+            raise ValueError("No file uploaded for this session, or the file is missing on disk.")
         return file_path
 
     raise ValueError(f"Invalid or missing Excel data_source: {data_source!r}")
@@ -92,7 +90,6 @@ def load_dataframe(file_path: str, sheet_name: Optional[str] = None) -> pd.DataF
 
 
 @tool
-# @traceable(name="excel_tool_list_sheets")
 def excel_list_sheets(config: RunnableConfig) -> str:
     """List all sheet names available in the user's Excel file."""
     logger.info("Sheet listing started")
@@ -113,7 +110,6 @@ def excel_list_sheets(config: RunnableConfig) -> str:
 
 
 @tool
-# @traceable(name="excel_tool_schema")
 def excel_schema(config: RunnableConfig, sheet_name: Optional[str] = None) -> str:
     """
     Get column names, dtypes, null counts, and sample values for a sheet.
@@ -190,9 +186,7 @@ def _execute_in_subprocess(
 
         exec_globals = restricted_globals(df)
         exec_locals: dict[str, Any] = {}
-        exec(
-            compile(code, "<generated>", "exec"), exec_globals, exec_locals
-        )  # noqa: S102
+        exec(compile(code, "<generated>", "exec"), exec_globals, exec_locals)  # noqa: S102
 
         result = exec_locals.get("result", "No `result` variable was produced.")
 
@@ -218,10 +212,7 @@ def _execute_in_subprocess(
 def _run_generated_code(code: str, df: pd.DataFrame) -> str:
     validate_code(code)
 
-    try:
-        ctx = multiprocessing.get_context("fork")
-    except ValueError:
-        ctx = multiprocessing.get_context("spawn")
+    ctx = multiprocessing.get_context("spawn")
 
     queue = ctx.Queue()
     proc = ctx.Process(target=_execute_in_subprocess, args=(code, df, queue))
@@ -236,9 +227,7 @@ def _run_generated_code(code: str, df: pd.DataFrame) -> str:
         )
 
     if queue.empty():
-        raise RuntimeError(
-            "Execution ended without a result (the process likely crashed)."
-        )
+        raise RuntimeError("Execution ended without a result (the process likely crashed).")
 
     status, payload = queue.get()
     if status == "error":
@@ -247,7 +236,6 @@ def _run_generated_code(code: str, df: pd.DataFrame) -> str:
 
 
 @tool
-# @traceable(name="excel_tool_run_pipeline")
 def run_excel_pipeline(instruction: str, config: RunnableConfig) -> str:
     """
     Analyze the current Excel sheet using pandas, generated on the fly from a
@@ -269,7 +257,9 @@ def run_excel_pipeline(instruction: str, config: RunnableConfig) -> str:
         logger.info(f"Code generation attempt {attempt + 1}/{CODE_GEN_MAX_ATTEMPTS}")
         prompt = _CODE_GEN_PROMPT_TEMPLATE.format(instruction=instruction)
         if last_error:
-            prompt += f"\nYour previous attempt failed with: {last_error}\nFix the code and try again.\n"
+            prompt += (
+                f"\nYour previous attempt failed with: {last_error}\nFix the code and try again.\n"
+            )
 
         try:
             raw_code = call_llm(prompt)

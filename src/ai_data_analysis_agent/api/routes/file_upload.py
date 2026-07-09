@@ -44,10 +44,7 @@ async def upload(file: UploadFile = File(...), session_id: str = Form(...)):
         )
 
     if not content.startswith(_XLSX_MAGIC):
-        raise HTTPException(
-            status_code=400, detail="File does not look like a valid .xlsx file"
-        )
-
+        raise HTTPException(status_code=400, detail="File does not look like a valid .xlsx file")
 
     file_path = UPLOAD_DIR / f"{session_id}.xlsx"
 
