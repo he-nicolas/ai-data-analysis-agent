@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -35,22 +35,22 @@ jobs:
     needs: lint-and-unit-tests
     if: github.event_name != 'schedule'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build backend image
-        run: docker build -f backend.Dockerfile -t agent-backend:ci .
+        run: docker build -f docker/backend.Dockerfile -t agent-backend:ci .
 
       - name: Build frontend image
-        run: docker build -f frontend.Dockerfile -t agent-frontend:ci .
+        run: docker build -f docker/frontend.Dockerfile -t agent-frontend:ci .
 
 
   manual-eval:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
