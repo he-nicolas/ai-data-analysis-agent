@@ -27,7 +27,7 @@ jobs:
         run: ruff check src/
 
       - name: Unit tests (fast, no real DB/subprocess/filesystem)
-        run: pytest tests/unit -v
+        run: pytest tests -v
 
   integration-tests:
     runs-on: ubuntu-latest
