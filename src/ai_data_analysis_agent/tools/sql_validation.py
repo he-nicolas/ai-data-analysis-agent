@@ -12,7 +12,7 @@ Requires: `pip install sqlparse`
 from __future__ import annotations
 
 import sqlparse
-from sqlparse.tokens import Keyword, DML, Literal, Comment
+from sqlparse.tokens import Keyword, Literal, Comment
 
 MAX_ROWS_DEFAULT = 100
 
