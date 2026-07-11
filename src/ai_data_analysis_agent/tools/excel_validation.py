@@ -17,22 +17,67 @@ from ai_data_analysis_agent.core.text_utils import strip_code_fences  # noqa: F4
 
 # Builtins that are safe to expose inside the sandboxed exec.
 ALLOWED_BUILTIN_NAMES = {
-    "abs", "all", "any", "bool", "dict", "enumerate", "filter", "float",
-    "int", "len", "list", "map", "max", "min", "range", "reversed",
-    "round", "set", "sorted", "str", "sum", "tuple", "zip",
+    "abs",
+    "all",
+    "any",
+    "bool",
+    "dict",
+    "enumerate",
+    "filter",
+    "float",
+    "int",
+    "len",
+    "list",
+    "map",
+    "max",
+    "min",
+    "range",
+    "reversed",
+    "round",
+    "set",
+    "sorted",
+    "str",
+    "sum",
+    "tuple",
+    "zip",
 }
 
 # Names that must never appear in generated code, whether as identifiers or calls.
 FORBIDDEN_NAMES = {
-    "__import__", "eval", "exec", "compile", "open", "input",
-    "getattr", "setattr", "delattr", "globals", "locals", "vars",
-    "dir", "help", "exit", "quit", "breakpoint", "memoryview", "os", "sys", "subprocess",
+    "__import__",
+    "eval",
+    "exec",
+    "compile",
+    "open",
+    "input",
+    "getattr",
+    "setattr",
+    "delattr",
+    "globals",
+    "locals",
+    "vars",
+    "dir",
+    "help",
+    "exit",
+    "quit",
+    "breakpoint",
+    "memoryview",
+    "os",
+    "sys",
+    "subprocess",
 }
 
 # DataFrame/Series methods that write data out or otherwise escape the sandbox.
 FORBIDDEN_ATTRS = {
-    "to_csv", "to_excel", "to_pickle", "to_sql", "to_json", "to_parquet",
-    "to_feather", "to_hdf", "to_clipboard",
+    "to_csv",
+    "to_excel",
+    "to_pickle",
+    "to_sql",
+    "to_json",
+    "to_parquet",
+    "to_feather",
+    "to_hdf",
+    "to_clipboard",
 }
 
 
