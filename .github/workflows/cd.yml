@@ -2,7 +2,8 @@ name: CD
 
 on:
   workflow_run:
-    workflows: ["CI"]
+    workflows:
+      - CI
     types:
       - completed
     branches:
@@ -12,25 +13,25 @@ permissions:
   contents: read
   packages: write
 
+
 jobs:
   docker-build:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main branch
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           ref: main
 
-      - name: Log in to GHCR
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push backend image
+      - name: Build backend image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -38,9 +39,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/agent-backend:latest
-            ghcr.io/${{ github.repository_owner }}/agent-backend:${{ github.sha }}
 
-      - name: Build and push frontend image
+      - name: Build frontend image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -48,7 +48,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/agent-frontend:latest
-            ghcr.io/${{ github.repository_owner }}/agent-frontend:${{ github.sha }}
 
 
   deploy:
@@ -56,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to GCP VM
+      - name: Deploy VM
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.GCP_VM_HOST }}
