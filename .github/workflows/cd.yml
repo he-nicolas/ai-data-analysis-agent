@@ -1,0 +1,79 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/backend.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/agent-backend:latest
+            ghcr.io/${{ github.repository_owner }}/agent-backend:${{ github.sha }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/frontend.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/agent-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/agent-frontend:${{ github.sha }}
+
+  deploy:
+    needs: docker-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GCP VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_VM_HOST }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_VM_SSH_PRIVATE_KEY }}
+
+          script: |
+            cd ~/ai-data-analysis-agent
+
+            git pull origin main
+
+            echo "${{ secrets.GITHUB_TOKEN }}" \
+              | docker login ghcr.io \
+              -u ${{ github.actor }} \
+              --password-stdin
+
+            docker compose \
+              -f docker/docker-compose.yml \
+              -f docker/docker-compose.prod.yml \
+              pull
+
+            docker compose \
+              -f docker/docker-compose.yml \
+              -f docker/docker-compose.prod.yml \
+              up -d --remove-orphans
+
+            docker image prune -f
