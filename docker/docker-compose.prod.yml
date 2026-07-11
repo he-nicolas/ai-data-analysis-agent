@@ -1,0 +1,9 @@
+services:
+  backend:
+    image: ghcr.io/he-nicolas/agent-backend:latest
+    pull_policy: always
+    ports: []
+
+  frontend:
+    image: ghcr.io/he-nicolas/agent-frontend:latest
+    pull_policy: always
