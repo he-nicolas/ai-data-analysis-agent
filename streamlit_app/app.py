@@ -8,9 +8,7 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="AI Data Analysis Agent", layout="wide")
 
-# -----------------------
 # Session state init
-# -----------------------
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
@@ -18,7 +16,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Hi! Please ask me any question related to the selected data source."
+            "content": "Hi! Please ask me any question related to the selected data source.",
         }
     ]
 
@@ -31,10 +29,9 @@ if "uploaded_excel" not in st.session_state:
 if "uploaded_file_name" not in st.session_state:
     st.session_state.uploaded_file_name = None
 
-# -----------------------
 # CSS Styling
-# -----------------------
-st.markdown("""
+st.markdown(
+    """
 <style>
 
 html, body, [data-testid="stAppViewContainer"] {
@@ -64,22 +61,18 @@ div[data-testid="stAlert"] p {
 
 
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-# -----------------------
-# Layout
-# -----------------------
 chat_col, control_col = st.columns([3, 1])
 
-# -----------------------
 # Right Column (Controls)
-# -----------------------
 with control_col:
     st.subheader("Data Source")
 
     data_source = st.radio(
-        "Choose data source",
-        ["[Example] Music Database", "[Example] Sales Excel", "Upload Excel"]
+        "Choose data source", ["[Example] Music Database", "[Example] Sales Excel", "Upload Excel"]
     )
 
     st.session_state.data_source = data_source
@@ -88,14 +81,10 @@ with control_col:
 
     if data_source == "Upload Excel":
         uploaded_file = st.file_uploader(
-            "Upload Excel file",
-            type=["xlsx"],
-            accept_multiple_files=False
+            "Upload Excel file", type=["xlsx"], accept_multiple_files=False
         )
 
-        # ---------------------------
         # CASE 1: NEW FILE UPLOADED
-        # ---------------------------
         if uploaded_file is not None:
             if st.session_state.uploaded_file_name != uploaded_file.name:
                 st.session_state.uploaded_excel = uploaded_file
@@ -104,11 +93,9 @@ with control_col:
                 try:
                     response = requests.post(
                         f"{API_BASE_URL}/file/upload",
-                        files={
-                            "file": (uploaded_file.name, uploaded_file.getvalue())
-                        },
+                        files={"file": (uploaded_file.name, uploaded_file.getvalue())},
                         data={"session_id": st.session_state.session_id},
-                        timeout=60
+                        timeout=60,
                     )
 
                     response.raise_for_status()
@@ -117,9 +104,7 @@ with control_col:
                 except Exception as e:
                     flexible_callout(f"Upload failed: {str(e)}", background_color="#e34439")
 
-        # ---------------------------
         # CASE 2: FILE REMOVED
-        # ---------------------------
         elif st.session_state.uploaded_excel is not None:
             removed_file = st.session_state.uploaded_file_name
 
@@ -130,7 +115,7 @@ with control_col:
                 requests.post(
                     f"{API_BASE_URL}/file/remove",
                     json={"session_id": st.session_state.session_id},
-                    timeout=10
+                    timeout=10,
                 )
             except Exception:
                 pass
@@ -145,7 +130,7 @@ with control_col:
             requests.post(
                 f"{API_BASE_URL}/file/remove",
                 json={"session_id": st.session_state.session_id},
-                timeout=10
+                timeout=10,
             )
         except Exception:
             pass
@@ -153,9 +138,7 @@ with control_col:
         st.session_state.uploaded_excel = None
         st.session_state.uploaded_file_name = None
 
-# -----------------------
 # Left Column (Chat)
-# -----------------------
 with chat_col:
     st.title("AI Data Analysis Agent")
     st.caption(f"Using: {st.session_state.data_source}")
@@ -166,11 +149,8 @@ with chat_col:
 
     chat_container = st.container(height=500)
 
-    # A response is "pending" whenever the last message is from the user -
-    # i.e. we've shown their question but haven't gotten an answer back yet.
     awaiting_response = (
-        len(st.session_state.messages) > 0
-        and st.session_state.messages[-1]["role"] == "user"
+        len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user"
     )
 
     with chat_container:
@@ -188,7 +168,7 @@ with chat_col:
                     payload = {
                         "input": st.session_state.messages[-1]["content"],
                         "session_id": st.session_state.session_id,
-                        "data_source": st.session_state.data_source
+                        "data_source": st.session_state.data_source,
                     }
 
                     try:
@@ -198,25 +178,17 @@ with chat_col:
                     except Exception as e:
                         answer = f"Error: {str(e)}"
 
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": answer
-            })
+            st.session_state.messages.append({"role": "assistant", "content": answer})
             st.rerun()
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     user_input = st.chat_input(
         "Ask a question about your data...",
         disabled=awaiting_response,
     )
 
-# -----------------------
-# Handle user input
-# -----------------------
+
 if user_input:
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
+    st.session_state.messages.append({"role": "user", "content": user_input})
     st.rerun()

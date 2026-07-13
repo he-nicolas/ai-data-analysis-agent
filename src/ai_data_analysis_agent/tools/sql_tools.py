@@ -37,7 +37,7 @@ def _execute_with_timeout(
     query: str, timeout: int = QUERY_TIMEOUT_SECONDS
 ) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        raw_conn = conn.connection  # underlying DBAPI (sqlite3) connection
+        raw_conn = conn.connection
         timer = threading.Timer(timeout, raw_conn.interrupt)
         timer.start()
         try:

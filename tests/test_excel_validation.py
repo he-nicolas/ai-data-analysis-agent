@@ -5,7 +5,7 @@ from ai_data_analysis_agent.tools.excel_validation import strip_code_fences, val
 
 class TestValidateCode:
     def test_valid_simple_code_passes(self):
-        validate_code("result = df['Revenue'].sum()")  # should not raise
+        validate_code("result = df['Revenue'].sum()")
 
     def test_valid_groupby_code_passes(self):
         validate_code("result = df.groupby('Region')['Revenue'].sum()")
