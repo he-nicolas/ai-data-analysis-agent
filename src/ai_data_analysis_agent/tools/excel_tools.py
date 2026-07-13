@@ -25,10 +25,6 @@ CODE_EXEC_TIMEOUT_SECONDS = 10
 CODE_EXEC_MEMORY_LIMIT_BYTES = 1024 * 1024 * 1024  # 1 GB
 CODE_GEN_MAX_ATTEMPTS = 2
 
-# ---------------------------------------------------------------------------
-# File resolution + dataframe caching
-# ---------------------------------------------------------------------------
-
 
 class _DataFrameCache:
     """Caches (file_path, sheet_name) -> DataFrame, invalidated on file mtime change."""
@@ -46,7 +42,6 @@ class _DataFrameCache:
 
         df = pd.read_excel(file_path, sheet_name=sheet_name)
         if isinstance(df, dict):
-            # sheet_name was None and the file had multiple sheets; default to the first.
             df = next(iter(df.values()))
 
         self._cache[key] = (mtime, df)
@@ -82,11 +77,6 @@ def resolve_file_path(config: RunnableConfig) -> str:
 def load_dataframe(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
     """Load (and cache) a dataframe for a given file/sheet."""
     return _df_cache.get(file_path, sheet_name)
-
-
-# ---------------------------------------------------------------------------
-# Simple, low-risk tools
-# ---------------------------------------------------------------------------
 
 
 @tool
@@ -144,10 +134,6 @@ def excel_schema(config: RunnableConfig, sheet_name: Optional[str] = None) -> st
         logger.exception(f"Schema inspection failed for sheet: {sheet_name}")
         return f"Error: {e}"
 
-
-# ---------------------------------------------------------------------------
-# Sandboxed code generation + execution
-# ---------------------------------------------------------------------------
 
 _CODE_GEN_PROMPT_TEMPLATE = """You are a pandas expert.
 

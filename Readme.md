@@ -149,7 +149,7 @@ Three GitHub Actions workflows:
 
 ## Observability
 
-Agent runs are traced via LangSmith - both the LangChain-native agent execution and the additional LLM calls made outside of it (the answerability check, SQL query correction) are traced.
+Agent runs are traced via LangSmith - both the LangChain-native agent execution and the additional LLM calls made outside of it (e.g., the answerability check, SQL query correction) are traced.
 
 ## Tech stack
 
