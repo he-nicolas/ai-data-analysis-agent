@@ -9,7 +9,6 @@ dist/
 *.egg-info/
 .eggs/
 .env
-.env.*
 .DS_Store
 .ipynb_checkpoints/
 data/uploaded_files/

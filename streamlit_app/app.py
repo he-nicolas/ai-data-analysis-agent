@@ -52,16 +52,16 @@ html, body, [data-testid="stAppViewContainer"] {
     flex-direction: column;
     height: 100%;
 }
-            
+
 div[data-testid="stAlert"] {
     background-color: #ffa500;
     border-radius: 8px;
 }
-            
+
 div[data-testid="stAlert"] p {
     color: black;
 }
-            
+
 
 </style>
 """, unsafe_allow_html=True)
