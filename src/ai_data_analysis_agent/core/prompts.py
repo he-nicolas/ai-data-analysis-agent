@@ -148,7 +148,7 @@ Rules:
 
 Respond with EXACTLY one word and nothing else - no punctuation, no
 explanation, no markdown. Valid responses: YES or NO
- 
+
 Examples of correctly formatted responses:
 YES
 NO

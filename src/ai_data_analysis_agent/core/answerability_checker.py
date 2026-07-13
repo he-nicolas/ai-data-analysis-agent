@@ -13,14 +13,11 @@ logger = get_logger(__name__)
 
 SourceType = Literal["sql", "excel"]
 
+
 def _get_sql_schema_context() -> str:
     tables_str = sql_db_list_tables.invoke("")
 
-    if (
-        not tables_str
-        or tables_str.startswith("Error")
-        or tables_str == "No user tables found."
-    ):
+    if not tables_str or tables_str.startswith("Error") or tables_str == "No user tables found.":
         logger.warning(f"No SQL tables available for schema guard: {tables_str!r}")
         return ""
 
@@ -41,17 +38,11 @@ def _get_sql_schema_context() -> str:
 def _get_excel_schema_context(config: RunnableConfig) -> str:
     sheets_str = excel_list_sheets.invoke({}, config=config)
 
-    if (
-        not sheets_str
-        or sheets_str.startswith("Error")
-        or "no sheets" in sheets_str.lower()
-    ):
+    if not sheets_str or sheets_str.startswith("Error") or "no sheets" in sheets_str.lower():
         logger.warning(f"No Excel sheets available for schema guard: {sheets_str!r}")
         return ""
 
-    sheet_names = [
-        s.strip() for s in sheets_str.removeprefix("Sheets: ").split(",") if s.strip()
-    ]
+    sheet_names = [s.strip() for s in sheets_str.removeprefix("Sheets: ").split(",") if s.strip()]
 
     schema_parts = []
     for sheet_name in sheet_names:
@@ -64,9 +55,7 @@ def _get_excel_schema_context(config: RunnableConfig) -> str:
     return "\n\n".join(schema_parts)
 
 
-def get_schema_context(
-    source_type: SourceType, config: Optional[RunnableConfig] = None
-) -> str:
+def get_schema_context(source_type: SourceType, config: Optional[RunnableConfig] = None) -> str:
     """
     Build the schema context for the currently connected data source.
 
@@ -106,6 +95,7 @@ def is_answerable(
     prompt = get_answerability_prompt(schema, user_input)
 
     response = call_llm(prompt, model=Settings.GUARD_LLM_MODEL).strip().upper()
+
     logger.info(f"Answerability check result: {response} (source_type={source_type})")
 
     return response.startswith("YES")
