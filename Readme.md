@@ -73,12 +73,20 @@ tests/
 
 ## Getting started
 
+# Create env file
+cp .env.example .env   # fill in your LLM provider and LangSmith API key
+
+# Run backend
+uv run uvicorn ai_data_analysis_agent.main:app --reload &
+
+# Run frontend
+uv run streamlit run streamlit_app/app.py
 ### Local development (no Docker)
 
 ```bash
 git clone <repo-url>
 cd ai-data-analysis-agent
-pip install -e .
+uv sync
 cp .env.example .env   # fill in your LLM provider and langsmith API key
 
 uvicorn ai_data_analysis_agent.main:app --reload &
